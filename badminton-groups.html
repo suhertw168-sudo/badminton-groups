@@ -450,61 +450,90 @@ function shuffle(arr) {
 }
 
 // ── 排程核心 ──────────────────────────────────────────────────────────────
+function* combos(arr, k, start, acc) {
+  start = start || 0; acc = acc || [];
+  if (acc.length === k) { yield acc.slice(); return; }
+  for (let i = start; i < arr.length; i++) {
+    acc.push(arr[i]);
+    yield* combos(arr, k, i + 1, acc);
+    acc.pop();
+  }
+}
+
 function trySchedule(n, totalRounds) {
   const appearances    = new Array(n).fill(0);
   const consecutiveOn  = new Array(n).fill(0);  // 連續上場次數
   const consecutiveOff = new Array(n).fill(0);  // 連續休息次數
   const partnerCount   = Array.from({length: n}, () => new Array(n).fill(0));
+  const opponentCount  = Array.from({length: n}, () => new Array(n).fill(0));
   const rounds = [];
   const targetApp = totalRounds * 4 / n;
   if (!Number.isInteger(targetApp)) return null;
 
-  // 依人數決定最多可連續休息幾場
-  const maxConsecRest = n <= 8 ? 1 : 2;
+  // 連續休息規則（兼顧「不晾太久」與「搭檔多樣」）：
+  //   8人以下：原則最多連休1場，必要時最多2場
+  //   9人以上：原則最多連休2場，必要時最多3場
+  // preferRest = 原則上限（超過會被「鼓勵」優先排上場）
+  // hardRest   = 絕對上限（達到必須上場）
+  const preferRest = n <= 8 ? 1 : 2;
+  const hardRest   = n <= 8 ? 2 : 3;
 
   for (let r = 0; r < totalRounds; r++) {
-    const mustPlay = new Set(); // 連續休息達上限，下場必須上場
+    const mustPlay = new Set(); // 連續休息達絕對上限，下場必須上場
     const mustRest = new Set(); // 連續上場達上限，下場必須休息
 
     for (let i = 0; i < n; i++) {
-      if (consecutiveOn[i] >= 2)           mustRest.add(i);
-      if (consecutiveOff[i] >= maxConsecRest) mustPlay.add(i);
+      if (consecutiveOn[i] >= 2)            mustRest.add(i);
+      if (consecutiveOff[i] >= hardRest)    mustPlay.add(i);
     }
-
-    // mustPlay 與 mustRest 衝突時（極端情況），優先讓他上場
     for (const p of mustPlay) mustRest.delete(p);
 
-    // 必須上場的人 + 可上場的人
-    const mustPlayList = [...mustPlay].filter(i => appearances[i] < targetApp);
-    const canPlay = [];
+    // 候選上場者：未達目標出場、未被強制休息
+    const pool = [];
     for (let i = 0; i < n; i++) {
-      if (!mustRest.has(i) && !mustPlay.has(i) && appearances[i] < targetApp) canPlay.push(i);
+      if (!mustRest.has(i) && appearances[i] < targetApp) pool.push(i);
+    }
+    if (pool.length < 4) return null;
+
+    const mustPlayArr = [...mustPlay].filter(i => pool.includes(i));
+
+    // 只考慮出場數接近最少者（差距≤1），確保出場均勻
+    const minAppVal = Math.min(...pool.map(i => appearances[i]));
+    const eligible = pool.filter(i => appearances[i] <= minAppVal + 1);
+    const searchPool = eligible.length >= 4 ? eligible : pool;
+
+    // 找出「出場總和最小」的所有4人候選組合
+    let candidates = [], minApp = Infinity;
+    for (const c of combos(searchPool, 4)) {
+      if (mustPlayArr.length && mustPlayArr.length <= 4 && !mustPlayArr.every(m => c.includes(m))) continue;
+      const appSum = c.reduce((s, p) => s + appearances[p], 0);
+      if (appSum < minApp) { minApp = appSum; candidates = [c]; }
+      else if (appSum === minApp) candidates.push(c);
+    }
+    if (!candidates.length) return null;
+
+    // 從候選組合 × 分隊方式中挑最佳：
+    //   優先搭檔最新鮮 → 其次讓「連休超過原則上限者」優先上場 → 其次對戰最新鮮
+    let best = null, bestScore = Infinity;
+    for (const c of candidates) {
+      // 連休超過原則上限者，給予上場獎勵（鼓勵但不強制）
+      const restBonus = c.reduce((s, p) => s + (consecutiveOff[p] >= preferRest ? consecutiveOff[p] * 30 : 0), 0);
+      const splits = [
+        [[c[0], c[1]], [c[2], c[3]]],
+        [[c[0], c[2]], [c[1], c[3]]],
+        [[c[0], c[3]], [c[1], c[2]]],
+      ];
+      for (const [tA, tB] of splits) {
+        const partnerRepeat = partnerCount[tA[0]][tA[1]] + partnerCount[tB[0]][tB[1]];
+        const oppRepeat = opponentCount[tA[0]][tB[0]] + opponentCount[tA[0]][tB[1]]
+                        + opponentCount[tA[1]][tB[0]] + opponentCount[tA[1]][tB[1]];
+        const score = partnerRepeat * 100 + oppRepeat - restBonus + Math.random() * 0.5;
+        if (score < bestScore) { bestScore = score; best = [tA, tB]; }
+      }
     }
 
-    // 若必須上場人數已超過4，只取其中4人（出場最少優先）
-    if (mustPlayList.length >= 4) {
-      mustPlayList.sort((a, b) => appearances[a] - appearances[b]);
-      var selected = mustPlayList.slice(0, 4);
-    } else {
-      // 填滿到4人
-      canPlay.sort((a, b) => appearances[a] - appearances[b] + (Math.random() - 0.5) * 0.3);
-      var selected = [...mustPlayList, ...canPlay].slice(0, 4);
-    }
-
-    if (selected.length < 4) return null;
-
-    const splits = [
-      [[selected[0], selected[1]], [selected[2], selected[3]]],
-      [[selected[0], selected[2]], [selected[1], selected[3]]],
-      [[selected[0], selected[3]], [selected[1], selected[2]]],
-    ];
-    let bestSplit = splits[0], bestPS = Infinity;
-    for (const [tA, tB] of splits) {
-      const ps = partnerCount[tA[0]][tA[1]] + partnerCount[tB[0]][tB[1]];
-      if (ps < bestPS) { bestPS = ps; bestSplit = [tA, tB]; }
-    }
-
-    const [tA, tB] = bestSplit;
+    const [tA, tB] = best;
+    const selected = [...tA, ...tB];
     const resting = [];
     for (let i = 0; i < n; i++) { if (!selected.includes(i)) resting.push(i); }
     rounds.push({ tA, tB, resting });
@@ -522,6 +551,7 @@ function trySchedule(n, totalRounds) {
     }
     partnerCount[tA[0]][tA[1]]++; partnerCount[tA[1]][tA[0]]++;
     partnerCount[tB[0]][tB[1]]++; partnerCount[tB[1]][tB[0]]++;
+    for (const a of tA) for (const b of tB) { opponentCount[a][b]++; opponentCount[b][a]++; }
   }
 
   const finalApp = new Array(n).fill(0);
@@ -536,11 +566,14 @@ function scoreSchedule(rounds, n) {
     partnerCount[tA[0]][tA[1]]++; partnerCount[tA[1]][tA[0]]++;
     partnerCount[tB[0]][tB[1]]++; partnerCount[tB[1]][tB[0]]++;
   }
-  let penalty = 0;
+  // 搭檔覆蓋率（搭過越多不同人越好）+ 重複懲罰
+  let unique = 0, penalty = 0;
   for (let i = 0; i < n; i++)
-    for (let j = i+1; j < n; j++)
+    for (let j = i+1; j < n; j++) {
+      if (partnerCount[i][j] > 0) unique++;
       if (partnerCount[i][j] > 1) penalty += (partnerCount[i][j] - 1);
-  return -penalty;
+    }
+  return unique * 10 - penalty;
 }
 
 function generateSchedule() {
@@ -550,12 +583,18 @@ function generateSchedule() {
   const totalRounds = parseInt(roundSelect.value);
   let best = null, bestScore = -Infinity;
 
-  for (let attempt = 0; attempt < 600; attempt++) {
+  // 理論最大搭檔覆蓋（每人出場數 vs 其他人數的較小值）
+  const targetApp = totalRounds * 4 / n;
+  const maxPairs = (n * (n - 1)) / 2;
+  const perfectUnique = Math.min(maxPairs, n * targetApp / 2);
+
+  for (let attempt = 0; attempt < 800; attempt++) {
     const result = trySchedule(n, totalRounds);
     if (!result) continue;
     const score = scoreSchedule(result, n);
     if (score > bestScore) { bestScore = score; best = result; }
-    if (bestScore === 0) break;
+    // 若已達理論最佳（無重複且覆蓋滿）提早結束
+    if (bestScore >= perfectUnique * 10) break;
   }
 
   if (!best) { showError('無法產生符合所有條件的分組，請換一個場次數量再試。'); return; }
