@@ -152,6 +152,23 @@
   input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
   input[type="text"]::placeholder { color: var(--muted); font-size: 0.78rem; }
 
+  /* 出賽名單下拉選單 */
+  .player-select {
+    width: 100%;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 9px 9px 30px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    min-width: 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .player-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
+
   /* ════════ BUTTONS ════════ */
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
@@ -166,32 +183,30 @@
   .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
   /* ── 名單管理 ── */
-  .roster-row {
+  .roster-add-row {
     display: flex;
     gap: 8px;
     align-items: center;
-    flex-wrap: wrap;
   }
-  #rosterSelect {
+  #newMemberInput {
     flex: 1;
-    min-width: 150px;
+    padding: 9px 12px;
+    min-width: 0;
   }
-  .roster-btns { display: flex; gap: 6px; }
   .btn-mini {
-    padding: 8px 12px;
+    padding: 9px 14px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--card);
     color: var(--muted);
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
   .btn-save:hover { border-color: var(--accent); color: var(--accent); }
-  .btn-del:hover  { border-color: #cc4444; color: #cc4444; }
   .roster-hint {
     font-size: 0.72rem;
     color: var(--muted);
@@ -200,6 +215,40 @@
   }
   .roster-hint.success { color: #0a8a3a; }
   .roster-hint.error   { color: #cc4444; }
+
+  .member-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 5px 8px 5px 12px;
+    font-size: 0.82rem;
+  }
+  .member-del {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0 2px;
+    border-radius: 50%;
+    transition: color 0.15s;
+  }
+  .member-del:hover { color: #cc4444; }
+  .member-empty {
+    font-size: 0.78rem;
+    color: var(--muted);
+    padding: 4px 0;
+  }
 
   /* ════════ RESULTS ════════ */
   .results-section { display: none; }
@@ -310,14 +359,15 @@
     .players-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 24px; }
 
     input[type="text"] { padding: 11px 11px 11px 34px; font-size: 0.92rem; }
+    .player-select { padding: 11px 11px 11px 34px; font-size: 0.92rem; }
 
     .btn { padding: 12px 28px; font-size: 0.95rem; gap: 8px; }
     .btn-row { gap: 12px; }
 
     /* 名單管理 */
-    #rosterSelect { min-width: 220px; flex: 0 1 auto; }
-    .btn-mini { padding: 10px 16px; font-size: 0.85rem; }
+    .btn-mini { padding: 10px 18px; font-size: 0.88rem; }
     .roster-hint { font-size: 0.8rem; }
+    .member-chip { font-size: 0.88rem; padding: 6px 10px 6px 14px; }
 
     /* Stats cards */
     .stats-row { gap: 14px; margin-bottom: 20px; }
@@ -357,20 +407,6 @@
 
 <div class="container">
   <div class="setup-panel">
-    <div class="panel-title">名單管理</div>
-    <div class="roster-row">
-      <select id="rosterSelect" onchange="loadRoster()">
-        <option value="">— 選擇已存名單 —</option>
-      </select>
-      <div class="roster-btns">
-        <button class="btn-mini btn-save" onclick="saveRoster()">💾 儲存</button>
-        <button class="btn-mini btn-del" onclick="deleteRoster()">🗑 刪除</button>
-      </div>
-    </div>
-    <div class="roster-hint" id="rosterHint"></div>
-  </div>
-
-  <div class="setup-panel">
     <div class="panel-title">設定人數與名單</div>
     <div class="count-select-row">
       <div class="select-row-item">
@@ -394,7 +430,7 @@
     <div class="error-msg" id="errorMsg"></div>
     <div class="btn-row" style="margin-top:6px">
       <button class="btn btn-primary" onclick="generateSchedule()">🏸 產生分組</button>
-      <button class="btn btn-secondary" onclick="clearNames()">清除名單</button>
+      <button class="btn btn-secondary" onclick="clearNames()">清除選擇</button>
     </div>
   </div>
 
@@ -424,6 +460,17 @@
       </div>
     </div>
   </div>
+
+  <div class="setup-panel">
+    <div class="panel-title">名單管理</div>
+    <div class="roster-add-row">
+      <input type="text" id="newMemberInput" placeholder="輸入名字後按新增" maxlength="10"
+             onkeydown="if(event.key==='Enter'){addMember();}">
+      <button class="btn-mini btn-save" onclick="addMember()">＋ 新增</button>
+    </div>
+    <div class="roster-hint" id="rosterHint"></div>
+    <div class="member-list" id="memberList"></div>
+  </div>
 </div>
 
 <script>
@@ -437,36 +484,111 @@ function calcValidRounds(n) {
   return result;
 }
 
+
 const countSelect = document.getElementById('playerCount');
 const roundSelect = document.getElementById('roundCount');
 const playersGrid = document.getElementById('playersGrid');
 
-// 預設名單（前三位）
-const savedNames  = ['Lily', 'Michael', 'Hank', '', '', '', '', '', '', '', '', ''];
-
 // 偵測是否為桌面裝置
 const isDesktop = () => window.innerWidth >= 768;
 
-function saveCurrentNames() {
-  for (let i = 0; i < 12; i++) {
-    const el = document.getElementById('p' + (i + 1));
-    if (el) savedNames[i] = el.value;
+// ── 總名冊（儲存在瀏覽器）────────────────────────────────────────────────
+const ROSTER_KEY = 'badminton_members';
+const DEFAULT_MEMBERS = ['Lily', 'Michael', 'Hank'];
+
+function getMembers() {
+  try {
+    const raw = localStorage.getItem(ROSTER_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return DEFAULT_MEMBERS.slice();
+}
+
+function setMembers(arr) {
+  try {
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(arr));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+let members = getMembers();
+
+function showHint(msg, type) {
+  const el = document.getElementById('rosterHint');
+  el.textContent = msg;
+  el.className = 'roster-hint' + (type ? ' ' + type : '');
+  if (msg) setTimeout(() => { el.textContent = ''; el.className = 'roster-hint'; }, 2500);
+}
+
+function renderMemberList() {
+  const box = document.getElementById('memberList');
+  if (!members.length) {
+    box.innerHTML = '<div class="member-empty">尚無成員，請於上方新增</div>';
+    return;
+  }
+  box.innerHTML = members.map((m, i) =>
+    `<span class="member-chip">${m}<button class="member-del" onclick="removeMember(${i})" title="刪除">×</button></span>`
+  ).join('');
+}
+
+function addMember() {
+  const inp = document.getElementById('newMemberInput');
+  const name = inp.value.trim();
+  if (!name) { showHint('請輸入名字', 'error'); return; }
+  if (members.includes(name)) { showHint(`「${name}」已存在`, 'error'); return; }
+  members.push(name);
+  if (setMembers(members)) {
+    inp.value = '';
+    renderMemberList();
+    buildAll();          // 重建下拉選單以包含新成員
+    showHint(`已新增「${name}」`, 'success');
+  } else {
+    members.pop();
+    showHint('儲存失敗（瀏覽器不支援）', 'error');
+  }
+}
+
+function removeMember(idx) {
+  const name = members[idx];
+  if (!confirm(`確定要刪除「${name}」嗎？`)) return;
+  members.splice(idx, 1);
+  setMembers(members);
+  renderMemberList();
+  buildAll();
+  showHint(`已刪除「${name}」`, 'success');
+}
+
+// ── 出賽名單選擇（下拉選單）──────────────────────────────────────────────
+// 記住目前每一格選了誰
+let selectedPlayers = [];
+
+function saveCurrentSelection() {
+  const n = parseInt(countSelect.value);
+  for (let i = 1; i <= n; i++) {
+    const el = document.getElementById('p' + i);
+    if (el) selectedPlayers[i - 1] = el.value;
   }
 }
 
 function buildAll() {
-  saveCurrentNames();
+  saveCurrentSelection();
   const n = parseInt(countSelect.value);
 
+  // 建立每一格的下拉選單
   playersGrid.innerHTML = '';
   for (let i = 1; i <= n; i++) {
     const wrap = document.createElement('div');
     wrap.className = 'player-input-wrap';
-    wrap.innerHTML = `<span class="player-num">${i}</span><input type="text" id="p${i}" placeholder="選手 ${i}" maxlength="10">`;
+    wrap.innerHTML =
+      `<span class="player-num">${i}</span>` +
+      `<select id="p${i}" class="player-select" onchange="onPlayerChange()"></select>`;
     playersGrid.appendChild(wrap);
-    if (savedNames[i - 1]) document.getElementById('p' + i).value = savedNames[i - 1];
   }
+  refreshPlayerSelects();
 
+  // 場次選項
   roundSelect.innerHTML = '';
   calcValidRounds(n).forEach((r, i) => {
     const o = document.createElement('option');
@@ -476,126 +598,47 @@ function buildAll() {
   });
 }
 
+// 重建所有下拉選單，已被選走的人不再出現在其他格
+function refreshPlayerSelects() {
+  const n = parseInt(countSelect.value);
+  const chosen = [];
+  for (let i = 1; i <= n; i++) {
+    const v = selectedPlayers[i - 1];
+    if (v && members.includes(v)) chosen.push(v);
+  }
+
+  for (let i = 1; i <= n; i++) {
+    const sel = document.getElementById('p' + i);
+    if (!sel) continue;
+    const myVal = selectedPlayers[i - 1] || '';
+    sel.innerHTML = '<option value="">— 選擇 —</option>';
+    members.forEach(m => {
+      // 別人已選走的就不顯示（自己選的要保留）
+      if (chosen.includes(m) && m !== myVal) return;
+      const o = document.createElement('option');
+      o.value = m; o.textContent = m;
+      if (m === myVal) o.selected = true;
+      sel.appendChild(o);
+    });
+    if (!members.includes(myVal)) selectedPlayers[i - 1] = '';
+  }
+}
+
+function onPlayerChange() {
+  saveCurrentSelection();
+  refreshPlayerSelects();
+}
+
 countSelect.addEventListener('change', buildAll);
+
+// 初始化：預設帶入前幾位成員
+selectedPlayers = members.slice(0, 12);
+renderMemberList();
 buildAll();
 
-// ── 名單管理（儲存多組名單）──────────────────────────────────────────────
-const ROSTER_KEY = 'badminton_rosters';
-
-function getRosters() {
-  try {
-    const raw = localStorage.getItem(ROSTER_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    return {};
-  }
-}
-
-function setRosters(obj) {
-  try {
-    localStorage.setItem(ROSTER_KEY, JSON.stringify(obj));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function showHint(msg, type) {
-  const el = document.getElementById('rosterHint');
-  el.textContent = msg;
-  el.className = 'roster-hint' + (type ? ' ' + type : '');
-  if (msg) setTimeout(() => { el.textContent = ''; el.className = 'roster-hint'; }, 2500);
-}
-
-function refreshRosterSelect(selectName) {
-  const sel = document.getElementById('rosterSelect');
-  const rosters = getRosters();
-  const keys = Object.keys(rosters);
-  sel.innerHTML = '<option value="">— 選擇已存名單 —</option>';
-  keys.forEach(name => {
-    const o = document.createElement('option');
-    o.value = name;
-    o.textContent = `${name}（${rosters[name].names.length}人）`;
-    sel.appendChild(o);
-  });
-  if (selectName && rosters[selectName]) sel.value = selectName;
-}
-
-function saveRoster() {
-  const n = parseInt(countSelect.value);
-  const names = [];
-  for (let i = 1; i <= n; i++) {
-    const v = document.getElementById('p' + i).value.trim();
-    names.push(v);
-  }
-  if (names.every(v => !v)) {
-    showHint('請先輸入名字再儲存', 'error');
-    return;
-  }
-
-  const current = document.getElementById('rosterSelect').value;
-  const suggested = current || '';
-  const name = prompt('請輸入名單名稱（例如：週三班）', suggested);
-  if (name === null) return;
-  const trimmed = name.trim();
-  if (!trimmed) { showHint('名稱不可空白', 'error'); return; }
-
-  const rosters = getRosters();
-  const isOverwrite = !!rosters[trimmed];
-  if (isOverwrite && !confirm(`「${trimmed}」已存在，要覆蓋嗎？`)) return;
-
-  rosters[trimmed] = { count: n, names: names };
-  if (setRosters(rosters)) {
-    refreshRosterSelect(trimmed);
-    showHint(isOverwrite ? `已更新「${trimmed}」` : `已儲存「${trimmed}」`, 'success');
-  } else {
-    showHint('儲存失敗（瀏覽器不支援或空間不足）', 'error');
-  }
-}
-
-function loadRoster() {
-  const sel = document.getElementById('rosterSelect');
-  const key = sel.value;
-  if (!key) return;
-  const rosters = getRosters();
-  const data = rosters[key];
-  if (!data) return;
-
-  // 先設定人數，再填入名字
-  countSelect.value = data.count;
-  // 同步到 savedNames 讓 buildAll 能還原
-  for (let i = 0; i < 12; i++) savedNames[i] = data.names[i] || '';
-  buildAll();
-  showHint(`已載入「${key}」`, 'success');
-}
-
-function deleteRoster() {
-  const sel = document.getElementById('rosterSelect');
-  const key = sel.value;
-  if (!key) { showHint('請先選擇要刪除的名單', 'error'); return; }
-  if (!confirm(`確定要刪除「${key}」嗎？`)) return;
-
-  const rosters = getRosters();
-  delete rosters[key];
-  if (setRosters(rosters)) {
-    refreshRosterSelect();
-    showHint(`已刪除「${key}」`, 'success');
-  } else {
-    showHint('刪除失敗', 'error');
-  }
-}
-
-// 初始化名單選單
-refreshRosterSelect();
-
 function clearNames() {
-  const n = parseInt(countSelect.value);
-  for (let i = 1; i <= n; i++) {
-    const el = document.getElementById('p' + i);
-    if (el) el.value = '';
-  }
-  for (let i = 0; i < 12; i++) savedNames[i] = '';
-  document.getElementById('rosterSelect').value = '';
+  selectedPlayers = [];
+  buildAll();
 }
 
 function showError(msg) { const el = document.getElementById('errorMsg'); el.textContent = msg; el.classList.add('show'); }
@@ -607,6 +650,17 @@ function getNames() {
     const v = document.getElementById('p' + (i+1)).value.trim();
     return v || ('選手' + (i+1));
   });
+}
+
+// 檢查是否每一格都選了人
+function validateSelection() {
+  const n = parseInt(countSelect.value);
+  const empty = [];
+  for (let i = 1; i <= n; i++) {
+    const v = document.getElementById('p' + i).value.trim();
+    if (!v) empty.push(i);
+  }
+  return empty;
 }
 
 function shuffle(arr) {
@@ -746,6 +800,13 @@ function scoreSchedule(rounds, n) {
 
 function generateSchedule() {
   hideError();
+
+  const empty = validateSelection();
+  if (empty.length) {
+    showError(`第 ${empty.join('、')} 格尚未選擇選手，請先選滿 ${countSelect.value} 人`);
+    return;
+  }
+
   const names = getNames();
   const n = names.length;
   const totalRounds = parseInt(roundSelect.value);
