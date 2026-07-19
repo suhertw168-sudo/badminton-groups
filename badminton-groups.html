@@ -279,41 +279,46 @@
 
   /* ════════ SCHEDULE TABLE ════════ */
   .schedule-table-wrap { border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
-  .schedule-table { width: 100%; border-collapse: collapse; background: var(--card); }
+  .schedule-table { width: 100%; border-collapse: collapse; background: var(--card); table-layout: fixed; }
   .schedule-table thead tr { background: #e8f0f8; border-bottom: 2px solid var(--border); }
   .schedule-table th {
     padding: 7px 8px; font-size: 0.58rem; letter-spacing: 1px;
     text-transform: uppercase; color: var(--muted); font-weight: 600;
   }
   .schedule-table th.th-num  { text-align: left; width: 44px; }
-  .schedule-table th.th-a    { text-align: right; color: #4d8fff; }
+  .schedule-table th.th-a    { text-align: center; color: #4d8fff; }
   .schedule-table th.th-vs   { text-align: center; width: 24px; }
-  .schedule-table th.th-b    { text-align: left; color: #c98000; }
-  .schedule-table th.th-rest { text-align: left; color: var(--muted); }
+  .schedule-table th.th-b    { text-align: center; color: #c98000; }
+  .schedule-table th.th-rest { text-align: left; color: var(--muted); width: 34%; }
   .schedule-table tbody tr { border-top: 1px solid var(--border); transition: background 0.15s; }
   .schedule-table tbody tr:hover { background: #eef4fb; }
   .schedule-table td { padding: 7px 8px; vertical-align: middle; }
   .td-num { font-size: 0.65rem; color: var(--muted); white-space: nowrap; }
-  .td-a  { text-align: right; }
+  .td-a  { text-align: center; }
   .td-vs {
     text-align: center; font-family: 'Bebas Neue', sans-serif;
     font-size: 0.78rem; color: var(--border); white-space: nowrap;
     width: 24px; padding-left: 1px; padding-right: 1px;
   }
-  .td-b    { text-align: left; }
+  .td-b    { text-align: center; }
   .td-rest { text-align: left; }
-  .names-a    { display: flex; gap: 3px; justify-content: flex-end; flex-wrap: wrap; }
-  .names-b    { display: flex; gap: 3px; justify-content: flex-start; flex-wrap: wrap; }
+  .names-a    { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+  .names-b    { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
   .names-rest { display: flex; gap: 3px; flex-wrap: wrap; }
+  .schedule-table td { overflow: hidden; }
   .chip-a {
     background: rgba(0,102,204,0.1); border: 1px solid rgba(0,102,204,0.3);
-    color: #0055aa; border-radius: 10px; padding: 1px 6px;
+    color: #0055aa; border-radius: 10px; padding: 3px 6px;
     font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    text-align: center; display: block;
+    overflow: hidden; text-overflow: ellipsis;
   }
   .chip-b {
     background: rgba(200,150,0,0.12); border: 1px solid rgba(200,150,0,0.35);
-    color: #b07800; border-radius: 10px; padding: 1px 6px;
+    color: #b07800; border-radius: 10px; padding: 3px 6px;
     font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    text-align: center; display: block;
+    overflow: hidden; text-overflow: ellipsis;
   }
   .chip-rest { color: var(--muted); font-size: 0.68rem; white-space: nowrap; }
 
@@ -391,11 +396,11 @@
     .schedule-table td { padding: 11px 16px; }
     .td-num { font-size: 0.82rem; }
     .td-vs  { font-size: 1rem; width: 50px; padding-left: 4px; padding-right: 4px; }
-    .names-a { gap: 6px; }
-    .names-b { gap: 6px; }
+    .names-a { gap: 5px; }
+    .names-b { gap: 5px; }
     .names-rest { gap: 6px; }
-    .chip-a { padding: 4px 14px; font-size: 0.88rem; border-radius: 14px; }
-    .chip-b { padding: 4px 14px; font-size: 0.88rem; border-radius: 14px; }
+    .chip-a { padding: 5px 12px; font-size: 0.88rem; border-radius: 12px; }
+    .chip-b { padding: 5px 12px; font-size: 0.88rem; border-radius: 12px; }
 
     /* Stats table */
     .player-table th { padding: 11px 16px; font-size: 0.7rem; letter-spacing: 1.5px; }
