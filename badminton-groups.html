@@ -868,11 +868,11 @@ function saveScheduleImage() {
   const padX = 28;
   const titleH = 92;
   const headH = 52;
-  const rowH = 58;
+  const rowH = 72;
   const footH = 44;
 
   // 一張圖最多幾列（避免過長，超過就分割）
-  const MAX_ROWS = 14;
+  const MAX_ROWS = 12;
   const chunks = [];
   for (let i = 0; i < rounds.length; i += MAX_ROWS) {
     chunks.push({ start: i, rows: rounds.slice(i, i + MAX_ROWS) });
@@ -890,6 +890,8 @@ function saveScheduleImage() {
   const xVs = xA + teamW;
   const xB = xVs + colVs;
   const xRest = xB + teamW;
+
+  const canvases = [];
 
   chunks.forEach((chunk, ci) => {
     const H = titleH + headH + chunk.rows.length * rowH + footH;
@@ -1021,43 +1023,69 @@ function saveScheduleImage() {
     const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
     ctx.fillText(dateStr, W / 2, endY + footH / 2 + 2);
 
-    // 下載
-    const suffix = chunks.length > 1 ? `_${ci + 1}` : '';
-    canvas.toBlob(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `羽球分組${suffix}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }, 'image/png');
+    // 收集畫布，稍後統一分享/下載
+    canvases.push(canvas);
+  });
+
+  exportCanvases(canvases);
+}
+
+// 匯出：優先使用系統分享（可存進相簿），不支援則下載
+async function exportCanvases(canvases) {
+  const files = [];
+  for (let i = 0; i < canvases.length; i++) {
+    const blob = await new Promise(res => canvases[i].toBlob(res, 'image/png'));
+    const suffix = canvases.length > 1 ? `_${i + 1}` : '';
+    files.push(new File([blob], `羽球分組${suffix}.png`, { type: 'image/png' }));
+  }
+
+  // 手機：呼叫系統分享，可選「儲存影像」直接進相簿
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try {
+      await navigator.share({ files, title: '羽球分組' });
+      return;
+    } catch (e) {
+      // 使用者取消分享就不再往下走
+      if (e && e.name === 'AbortError') return;
+    }
+  }
+
+  // 電腦或不支援分享：改為下載
+  files.forEach((file, i) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
 }
 
-// 畫兩個名字的膠囊標籤（置中排列）
+// 畫兩個名字的膠囊標籤（固定上下排列，寬度一致）
 function drawNames(ctx, arr, x, cy, w, bg, fg) {
-  ctx.font = '16px "Noto Sans TC", sans-serif';
-  const gap = 8;
-  const padH = 11;
-  const chipH = 30;
+  ctx.font = '15px "Noto Sans TC", sans-serif';
+  const chipH = 26;      // 每個膠囊高度
+  const vGap = 5;        // 上下間距
+  const chipW = w - 24;  // 固定寬度（兩個一樣寬）
+  const cx = x + (w - chipW) / 2;
 
-  const widths = arr.map(t => Math.min(ctx.measureText(t).width + padH * 2, (w - gap) / 2));
-  const totalW = widths.reduce((a, b) => a + b, 0) + gap * (arr.length - 1);
-  let cx = x + (w - totalW) / 2;
+  // 兩個名字上下排列，整體垂直置中
+  const totalH = arr.length * chipH + (arr.length - 1) * vGap;
+  let y = cy - totalH / 2;
 
-  arr.forEach((t, i) => {
-    const cw = widths[i];
-    // 圓角矩形
-    roundRect(ctx, cx, cy - chipH / 2, cw, chipH, 15);
+  arr.forEach(t => {
+    roundRect(ctx, cx, y, chipW, chipH, 13);
     ctx.fillStyle = bg;
     ctx.fill();
 
     ctx.fillStyle = fg;
     ctx.textAlign = 'center';
-    fitText(ctx, t, cx + cw / 2, cy, cw - padH);
-    cx += cw + gap;
+    ctx.textBaseline = 'middle';
+    ctx.font = '15px "Noto Sans TC", sans-serif';
+    fitText(ctx, t, cx + chipW / 2, y + chipH / 2, chipW - 16);
+    y += chipH + vGap;
   });
 }
 
