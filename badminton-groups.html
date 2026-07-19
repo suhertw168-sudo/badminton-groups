@@ -98,6 +98,15 @@
   }
   .panel-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
+  /* 標題列（含按鈕） */
+  .panel-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .panel-title-row .panel-title { flex: 1; }
+
   /* ════════ CONTROLS ════════ */
   .count-select-row { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
   .select-row-item  { display: flex; align-items: center; gap: 10px; }
@@ -437,7 +446,10 @@
   <div class="results-section" id="resultsSection">
     <div class="stats-row" id="statsRow"></div>
     <div class="setup-panel">
-      <div class="panel-title">場次總覽</div>
+      <div class="panel-title-row">
+        <div class="panel-title" style="margin-bottom:0">場次總覽</div>
+        <button class="btn-mini btn-save" onclick="saveScheduleImage()">📷 儲存圖片</button>
+      </div>
       <div class="schedule-table-wrap">
         <table class="schedule-table" id="scheduleTable"></table>
       </div>
@@ -637,6 +649,12 @@ renderMemberList();
 buildAll();
 
 function clearNames() {
+  const n = parseInt(countSelect.value);
+  // 先清空畫面上的選單，避免 buildAll 又把舊值讀回來
+  for (let i = 1; i <= n; i++) {
+    const el = document.getElementById('p' + i);
+    if (el) el.value = '';
+  }
   selectedPlayers = [];
   buildAll();
 }
@@ -831,7 +849,246 @@ function generateSchedule() {
 }
 
 // ── 渲染結果 ──────────────────────────────────────────────────────────────
+// ── 圖片匯出 ──────────────────────────────────────────────────────────────
+// 儲存最近一次產生的分組，供匯出圖片使用
+let lastNames = null, lastRounds = null;
+
+function saveScheduleImage() {
+  if (!lastRounds || !lastNames) {
+    alert('請先產生分組');
+    return;
+  }
+
+  const names = lastNames, rounds = lastRounds;
+  const hasRest = rounds.some(r => r.resting.length > 0);
+
+  // ── 版面參數（以手機寬度為基準）──
+  const W = 750;              // 圖片寬度
+  const scale = 2;            // 高解析度倍率
+  const padX = 28;
+  const titleH = 92;
+  const headH = 52;
+  const rowH = 58;
+  const footH = 44;
+
+  // 一張圖最多幾列（避免過長，超過就分割）
+  const MAX_ROWS = 14;
+  const chunks = [];
+  for (let i = 0; i < rounds.length; i += MAX_ROWS) {
+    chunks.push({ start: i, rows: rounds.slice(i, i + MAX_ROWS) });
+  }
+
+  // 欄位寬度配置（休息人多時加寬該欄）
+  const maxRestCount = Math.max(...rounds.map(r => r.resting.length));
+  const colNum = 88;
+  const colRest = hasRest ? (maxRestCount >= 4 ? 168 : 132) : 0;
+  const colVs = 46;
+  const teamW = (W - padX * 2 - colNum - colVs - colRest) / 2;
+
+  const xNum = padX;
+  const xA = xNum + colNum;
+  const xVs = xA + teamW;
+  const xB = xVs + colVs;
+  const xRest = xB + teamW;
+
+  chunks.forEach((chunk, ci) => {
+    const H = titleH + headH + chunk.rows.length * rowH + footH;
+    const canvas = document.createElement('canvas');
+    canvas.width = W * scale;
+    canvas.height = H * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    // 背景
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // 頂部漸層條
+    const grad = ctx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0, '#0077cc');
+    grad.addColorStop(1, '#f0a500');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, 6);
+
+    // 標題
+    ctx.fillStyle = '#1a2a3a';
+    ctx.font = 'bold 30px "Noto Sans TC", sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    let title = '🏸 羽球分組';
+    if (chunks.length > 1) title += `（${ci + 1}/${chunks.length}）`;
+    ctx.fillText(title, padX, 42);
+
+    // 副標
+    ctx.fillStyle = '#6b7f96';
+    ctx.font = '16px "Noto Sans TC", sans-serif';
+    const totalP = names.length;
+    ctx.fillText(`${totalP} 人 · 共 ${rounds.length} 場`, padX, 70);
+
+    // 表頭
+    const headY = titleH;
+    ctx.fillStyle = '#eef4fb';
+    ctx.fillRect(padX, headY, W - padX * 2, headH);
+
+    ctx.font = 'bold 17px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#6b7f96';
+    ctx.fillText('場次', xNum + 8, headY + headH / 2);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0055aa';
+    ctx.fillText('A 隊', xA + teamW / 2, headY + headH / 2);
+    ctx.fillStyle = '#b07800';
+    ctx.fillText('B 隊', xB + teamW / 2, headY + headH / 2);
+
+    if (hasRest) {
+      ctx.fillStyle = '#6b7f96';
+      ctx.fillText('休息', xRest + colRest / 2, headY + headH / 2);
+    }
+
+    // 每一列
+    chunk.rows.forEach((r, ri) => {
+      const y = headY + headH + ri * rowH;
+      const cy = y + rowH / 2;
+
+      // 斑馬紋
+      if (ri % 2 === 1) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(padX, y, W - padX * 2, rowH);
+      }
+
+      // 分隔線
+      ctx.strokeStyle = '#e3ebf3';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padX, y);
+      ctx.lineTo(W - padX, y);
+      ctx.stroke();
+
+      // 場次編號
+      ctx.fillStyle = '#6b7f96';
+      ctx.font = '16px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(String(chunk.start + ri + 1).padStart(2, '0'), xNum + 12, cy);
+
+      // A 隊名字（膠囊）
+      drawNames(ctx, r.tA.map(p => names[p]), xA, cy, teamW, '#e8f0fc', '#0055aa');
+      // VS
+      ctx.fillStyle = '#c8d4e0';
+      ctx.font = 'bold 16px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('VS', xVs + colVs / 2, cy);
+      // B 隊名字
+      drawNames(ctx, r.tB.map(p => names[p]), xB, cy, teamW, '#fdf3dd', '#a06f00');
+
+      // 休息
+      if (hasRest) {
+        ctx.fillStyle = '#9aabbd';
+        ctx.textAlign = 'center';
+        const restNames = r.resting.map(p => names[p]);
+        if (!restNames.length) {
+          ctx.font = '15px "Noto Sans TC", sans-serif';
+          ctx.fillText('—', xRest + colRest / 2, cy);
+        } else if (restNames.length <= 3) {
+          ctx.font = '14px "Noto Sans TC", sans-serif';
+          fitText(ctx, restNames.join('、'), xRest + colRest / 2, cy, colRest - 10);
+        } else {
+          // 名字多時分兩行
+          const half = Math.ceil(restNames.length / 2);
+          ctx.font = '13px "Noto Sans TC", sans-serif';
+          ctx.fillStyle = '#9aabbd';
+          fitText(ctx, restNames.slice(0, half).join('、'), xRest + colRest / 2, cy - 10, colRest - 10);
+          ctx.font = '13px "Noto Sans TC", sans-serif';
+          ctx.fillStyle = '#9aabbd';
+          fitText(ctx, restNames.slice(half).join('、'), xRest + colRest / 2, cy + 10, colRest - 10);
+        }
+      }
+    });
+
+    // 底線
+    const endY = headY + headH + chunk.rows.length * rowH;
+    ctx.strokeStyle = '#e3ebf3';
+    ctx.beginPath();
+    ctx.moveTo(padX, endY);
+    ctx.lineTo(W - padX, endY);
+    ctx.stroke();
+
+    // 頁尾
+    ctx.fillStyle = '#aab8c6';
+    ctx.font = '14px "Noto Sans TC", sans-serif';
+    ctx.textAlign = 'center';
+    const d = new Date();
+    const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+    ctx.fillText(dateStr, W / 2, endY + footH / 2 + 2);
+
+    // 下載
+    const suffix = chunks.length > 1 ? `_${ci + 1}` : '';
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `羽球分組${suffix}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  });
+}
+
+// 畫兩個名字的膠囊標籤（置中排列）
+function drawNames(ctx, arr, x, cy, w, bg, fg) {
+  ctx.font = '16px "Noto Sans TC", sans-serif';
+  const gap = 8;
+  const padH = 11;
+  const chipH = 30;
+
+  const widths = arr.map(t => Math.min(ctx.measureText(t).width + padH * 2, (w - gap) / 2));
+  const totalW = widths.reduce((a, b) => a + b, 0) + gap * (arr.length - 1);
+  let cx = x + (w - totalW) / 2;
+
+  arr.forEach((t, i) => {
+    const cw = widths[i];
+    // 圓角矩形
+    roundRect(ctx, cx, cy - chipH / 2, cw, chipH, 15);
+    ctx.fillStyle = bg;
+    ctx.fill();
+
+    ctx.fillStyle = fg;
+    ctx.textAlign = 'center';
+    fitText(ctx, t, cx + cw / 2, cy, cw - padH);
+    cx += cw + gap;
+  });
+}
+
+// 文字過長自動縮小
+function fitText(ctx, text, x, y, maxW) {
+  let size = parseInt(ctx.font) || 16;
+  const fam = ctx.font.replace(/^[\d.]+px\s*/, '');
+  while (ctx.measureText(text).width > maxW && size > 10) {
+    size -= 1;
+    ctx.font = `${size}px ${fam}`;
+  }
+  ctx.fillText(text, x, y);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 function renderResults(names, rounds) {
+  lastNames = names;
+  lastRounds = rounds;
   const n = names.length;
   const desktop = isDesktop();
   const section = document.getElementById('resultsSection');
