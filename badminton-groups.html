@@ -165,6 +165,42 @@
   .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
   .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
+  /* ── 名單管理 ── */
+  .roster-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  #rosterSelect {
+    flex: 1;
+    min-width: 150px;
+  }
+  .roster-btns { display: flex; gap: 6px; }
+  .btn-mini {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-save:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-del:hover  { border-color: #cc4444; color: #cc4444; }
+  .roster-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 8px;
+    min-height: 16px;
+  }
+  .roster-hint.success { color: #0a8a3a; }
+  .roster-hint.error   { color: #cc4444; }
+
   /* ════════ RESULTS ════════ */
   .results-section { display: none; }
   .results-section.visible { display: block; animation: fadeUp 0.4s ease; }
@@ -278,6 +314,11 @@
     .btn { padding: 12px 28px; font-size: 0.95rem; gap: 8px; }
     .btn-row { gap: 12px; }
 
+    /* 名單管理 */
+    #rosterSelect { min-width: 220px; flex: 0 1 auto; }
+    .btn-mini { padding: 10px 16px; font-size: 0.85rem; }
+    .roster-hint { font-size: 0.8rem; }
+
     /* Stats cards */
     .stats-row { gap: 14px; margin-bottom: 20px; }
     .stat-card { padding: 18px 10px; border-radius: 12px; }
@@ -315,6 +356,20 @@
 </header>
 
 <div class="container">
+  <div class="setup-panel">
+    <div class="panel-title">名單管理</div>
+    <div class="roster-row">
+      <select id="rosterSelect" onchange="loadRoster()">
+        <option value="">— 選擇已存名單 —</option>
+      </select>
+      <div class="roster-btns">
+        <button class="btn-mini btn-save" onclick="saveRoster()">💾 儲存</button>
+        <button class="btn-mini btn-del" onclick="deleteRoster()">🗑 刪除</button>
+      </div>
+    </div>
+    <div class="roster-hint" id="rosterHint"></div>
+  </div>
+
   <div class="setup-panel">
     <div class="panel-title">設定人數與名單</div>
     <div class="count-select-row">
@@ -385,7 +440,9 @@ function calcValidRounds(n) {
 const countSelect = document.getElementById('playerCount');
 const roundSelect = document.getElementById('roundCount');
 const playersGrid = document.getElementById('playersGrid');
-const savedNames  = new Array(12).fill('');
+
+// 預設名單（前三位）
+const savedNames  = ['Lily', 'Michael', 'Hank', '', '', '', '', '', '', '', '', ''];
 
 // 偵測是否為桌面裝置
 const isDesktop = () => window.innerWidth >= 768;
@@ -422,12 +479,123 @@ function buildAll() {
 countSelect.addEventListener('change', buildAll);
 buildAll();
 
+// ── 名單管理（儲存多組名單）──────────────────────────────────────────────
+const ROSTER_KEY = 'badminton_rosters';
+
+function getRosters() {
+  try {
+    const raw = localStorage.getItem(ROSTER_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function setRosters(obj) {
+  try {
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(obj));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function showHint(msg, type) {
+  const el = document.getElementById('rosterHint');
+  el.textContent = msg;
+  el.className = 'roster-hint' + (type ? ' ' + type : '');
+  if (msg) setTimeout(() => { el.textContent = ''; el.className = 'roster-hint'; }, 2500);
+}
+
+function refreshRosterSelect(selectName) {
+  const sel = document.getElementById('rosterSelect');
+  const rosters = getRosters();
+  const keys = Object.keys(rosters);
+  sel.innerHTML = '<option value="">— 選擇已存名單 —</option>';
+  keys.forEach(name => {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = `${name}（${rosters[name].names.length}人）`;
+    sel.appendChild(o);
+  });
+  if (selectName && rosters[selectName]) sel.value = selectName;
+}
+
+function saveRoster() {
+  const n = parseInt(countSelect.value);
+  const names = [];
+  for (let i = 1; i <= n; i++) {
+    const v = document.getElementById('p' + i).value.trim();
+    names.push(v);
+  }
+  if (names.every(v => !v)) {
+    showHint('請先輸入名字再儲存', 'error');
+    return;
+  }
+
+  const current = document.getElementById('rosterSelect').value;
+  const suggested = current || '';
+  const name = prompt('請輸入名單名稱（例如：週三班）', suggested);
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed) { showHint('名稱不可空白', 'error'); return; }
+
+  const rosters = getRosters();
+  const isOverwrite = !!rosters[trimmed];
+  if (isOverwrite && !confirm(`「${trimmed}」已存在，要覆蓋嗎？`)) return;
+
+  rosters[trimmed] = { count: n, names: names };
+  if (setRosters(rosters)) {
+    refreshRosterSelect(trimmed);
+    showHint(isOverwrite ? `已更新「${trimmed}」` : `已儲存「${trimmed}」`, 'success');
+  } else {
+    showHint('儲存失敗（瀏覽器不支援或空間不足）', 'error');
+  }
+}
+
+function loadRoster() {
+  const sel = document.getElementById('rosterSelect');
+  const key = sel.value;
+  if (!key) return;
+  const rosters = getRosters();
+  const data = rosters[key];
+  if (!data) return;
+
+  // 先設定人數，再填入名字
+  countSelect.value = data.count;
+  // 同步到 savedNames 讓 buildAll 能還原
+  for (let i = 0; i < 12; i++) savedNames[i] = data.names[i] || '';
+  buildAll();
+  showHint(`已載入「${key}」`, 'success');
+}
+
+function deleteRoster() {
+  const sel = document.getElementById('rosterSelect');
+  const key = sel.value;
+  if (!key) { showHint('請先選擇要刪除的名單', 'error'); return; }
+  if (!confirm(`確定要刪除「${key}」嗎？`)) return;
+
+  const rosters = getRosters();
+  delete rosters[key];
+  if (setRosters(rosters)) {
+    refreshRosterSelect();
+    showHint(`已刪除「${key}」`, 'success');
+  } else {
+    showHint('刪除失敗', 'error');
+  }
+}
+
+// 初始化名單選單
+refreshRosterSelect();
+
 function clearNames() {
   const n = parseInt(countSelect.value);
   for (let i = 1; i <= n; i++) {
     const el = document.getElementById('p' + i);
     if (el) el.value = '';
   }
+  for (let i = 0; i < 12; i++) savedNames[i] = '';
+  document.getElementById('rosterSelect').value = '';
 }
 
 function showError(msg) { const el = document.getElementById('errorMsg'); el.textContent = msg; el.classList.add('show'); }
